@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -11,15 +11,43 @@ const defaultMenuItems = [
   { name: 'FAQ', to: '/#faq' },
 ];
 
+function scrollToHash(hash) {
+  const id = hash.replace('#', '');
+  const el = document.getElementById(id);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+}
 
 export function SiteHeader({ menuItems = defaultMenuItems } = {}) {
   const [menuState, setMenuState] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const handleAnchorClick = useCallback((e, to) => {
+    // Links que não são âncora: comportamento normal
+    if (!to.includes('#')) return;
+
+    const [path, hash] = to.split('#');
+    const targetPath = path || '/';
+
+    e.preventDefault();
+    setMenuState(false);
+
+    if (location.pathname === targetPath || targetPath === '/') {
+      // Já está na página correcta → scroll directo
+      if (location.pathname === '/') {
+        scrollToHash('#' + hash);
+        return;
+      }
+    }
+    // Noutra página → navega e deixa o HashScroller tratar o scroll
+    navigate(to);
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 50);
-    };
+    const handleScroll = () => setIsScrolled(window.scrollY > 50);
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
@@ -71,6 +99,7 @@ export function SiteHeader({ menuItems = defaultMenuItems } = {}) {
                   <li key={item.to + item.name}>
                     <Link
                       to={item.to}
+                      onClick={(e) => handleAnchorClick(e, item.to)}
                       className="text-gray-600 hover:text-royal-blue block duration-150 transition-colors"
                     >
                       <span>{item.name}</span>
@@ -92,7 +121,7 @@ export function SiteHeader({ menuItems = defaultMenuItems } = {}) {
                     <li key={item.to + item.name + 'm'}>
                       <Link
                         to={item.to}
-                        onClick={() => setMenuState(false)}
+                        onClick={(e) => { handleAnchorClick(e, item.to); setMenuState(false); }}
                         className="block py-2 hover:text-royal-blue transition-colors"
                       >
                         {item.name}
@@ -107,7 +136,10 @@ export function SiteHeader({ menuItems = defaultMenuItems } = {}) {
                   size="sm"
                   className="rounded-full px-6 bg-royal-blue text-white hover:bg-blue-600 text-sm font-medium shadow-md"
                 >
-                  <Link to="/#orcamento" onClick={() => setMenuState(false)}>
+                  <Link
+                    to="/#orcamento"
+                    onClick={(e) => { handleAnchorClick(e, '/#orcamento'); setMenuState(false); }}
+                  >
                     <span>Falar com Especialista</span>
                   </Link>
                 </Button>

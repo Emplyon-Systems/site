@@ -32,10 +32,10 @@ const Footer = () => {
                 <div className="border-t border-gray-100 pt-8 flex flex-col items-center text-sm text-gray-400 w-full">
                     <p>&copy; 2024{' '}<span className="notranslate" translate="no">Emplyon</span>. Todos os direitos reservados.</p>
                     <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4">
-                        <Link to="/blog" className="hover:text-deep-navy">Blog</Link>
-                        <a href="#" className="hover:text-deep-navy">Termos</a>
-                        <a href="#" className="hover:text-deep-navy">Privacidade</a>
-                        <a href="#" className="hover:text-deep-navy">Cookies</a>
+                        <Link to="/blog" className="hover:text-deep-navy transition-colors">Blog</Link>
+                        <Link to="/termos" className="hover:text-deep-navy transition-colors">Termos</Link>
+                        <Link to="/privacidade" className="hover:text-deep-navy transition-colors">Privacidade</Link>
+                        <Link to="/cookies" className="hover:text-deep-navy transition-colors">Cookies</Link>
                     </div>
                 </div>
             </div>

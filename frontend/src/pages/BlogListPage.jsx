@@ -17,31 +17,18 @@ import Footer from '@/components/Footer';
 
 const POSTS_PER_PAGE = 4;
 
-const CATEGORY_COLORS = {
-  Compliance:  { bg: 'bg-blue-100',   text: 'text-blue-700',   border: 'border-blue-200',   dot: 'bg-blue-500'   },
-  Gestão:      { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200', dot: 'bg-purple-500' },
-  Operação:    { bg: 'bg-emerald-100',text: 'text-emerald-700',border: 'border-emerald-200',dot: 'bg-emerald-500' },
-  Tecnologia:  { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200', dot: 'bg-indigo-500'  },
-  Pessoas:     { bg: 'bg-rose-100',   text: 'text-rose-700',   border: 'border-rose-200',   dot: 'bg-rose-500'   },
-  Dados:       { bg: 'bg-amber-100',  text: 'text-amber-700',  border: 'border-amber-200',  dot: 'bg-amber-500'  },
-};
-
 function formatDate(iso) {
   const d = new Date(iso + 'T12:00:00');
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function CategoryBadge({ category, size = 'sm' }) {
-  const colors = CATEGORY_COLORS[category] ?? {
-    bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200', dot: 'bg-gray-400',
-  };
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border font-medium ${colors.bg} ${colors.text} ${colors.border} ${
+      className={`inline-flex items-center rounded-full font-bold bg-coral-prime text-white ${
         size === 'sm' ? 'px-2.5 py-0.5 text-xs' : 'px-3 py-1 text-sm'
       }`}
     >
-      <span className={`w-1.5 h-1.5 rounded-full ${colors.dot}`} />
       {category}
     </span>
   );
@@ -202,43 +189,56 @@ export function BlogListPage() {
     <div className="min-h-screen bg-gray-50 font-sans text-deep-navy">
       <SiteHeader />
 
-      {/* Espaço branco acima do hero para o header transparente não sobrepor o azul escuro */}
-      <div className="h-20 md:h-24 bg-white" />
+      {/* Hero com imagem de fundo */}
+      <div className="relative overflow-hidden h-[52vh] min-h-[380px] md:h-[58vh]">
+        {/* Imagem de fundo */}
+        <img
+          src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1600&q=80&auto=format&fit=crop"
+          alt=""
+          aria-hidden="true"
+          className="absolute inset-0 w-full h-full object-cover object-center scale-105"
+          loading="eager"
+        />
 
-      {/* Hero */}
-      <div className="relative bg-deep-navy pt-10 pb-16 overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-deep-navy via-[#013a73] to-[#0179FE]/30 pointer-events-none" />
-        <div className="absolute -top-32 -right-32 w-96 h-96 bg-royal-blue/20 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-coral-prime/10 rounded-full blur-3xl pointer-events-none" />
+        {/* Gradiente branco no topo — protege o header */}
+        <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white via-white/60 to-transparent pointer-events-none" />
 
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <p className="text-royal-blue/80 font-semibold text-sm uppercase tracking-widest mb-3">Blog Emplyon</p>
-          <h1 className="text-4xl md:text-6xl font-heading font-bold text-white text-balance leading-tight">
-            Conteúdo para quem<br className="hidden md:block" /> gere escalas de verdade
-          </h1>
-          <p className="mt-4 text-lg text-white/60 max-w-xl mx-auto">
-            Artigos sobre conformidade, liderança e dados — sem jargão desnecessário.
-          </p>
+        {/* Gradiente escuro na base — área do título */}
+        <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-deep-navy/95 via-deep-navy/75 to-transparent pointer-events-none" />
 
-          {/* Search */}
-          <div className="mt-8 relative max-w-xl mx-auto">
-            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 pointer-events-none" />
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Pesquisar artigos, tags..."
-              className="w-full pl-12 pr-12 py-3.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder:text-white/40 focus:outline-none focus:ring-2 focus:ring-royal-blue focus:bg-white/15 transition-all backdrop-blur-sm text-base"
-            />
-            {query && (
-              <button
-                onClick={() => setQuery('')}
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors"
-                aria-label="Limpar pesquisa"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
+        {/* Conteúdo centralizado na base */}
+        <div className="absolute inset-0 flex flex-col justify-end pb-10 md:pb-14 px-4 sm:px-6">
+          <div className="max-w-3xl mx-auto w-full text-center">
+            <p className="text-blue-300 font-semibold text-xs uppercase tracking-[0.2em] mb-4">
+              Blog
+            </p>
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-heading font-bold text-white leading-[1.1] text-balance">
+              Insights para quem<br className="hidden sm:block" /> lidera operações.
+            </h1>
+            <p className="mt-5 text-base md:text-lg text-white/55 max-w-md mx-auto leading-relaxed">
+              Escala, conformidade e pessoas — direto ao ponto, sem enrolação.
+            </p>
+
+            {/* Search */}
+            <div className="mt-8 relative max-w-md mx-auto">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70 pointer-events-none" />
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Buscar artigo ou tema..."
+                className="w-full pl-11 pr-10 py-3.5 rounded-2xl bg-white/15 border border-white/25 text-white placeholder:text-white/45 focus:outline-none focus:ring-2 focus:ring-white/40 focus:bg-white/20 transition-all backdrop-blur-md text-sm"
+              />
+              {query && (
+                <button
+                  onClick={() => setQuery('')}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors"
+                  aria-label="Limpar pesquisa"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -260,16 +260,15 @@ export function BlogListPage() {
           </button>
           {categories.map((cat) => {
             const count = allPosts.filter((p) => p.category === cat).length;
-            const colors = CATEGORY_COLORS[cat];
             const isActive = activeCategory === cat;
             return (
               <button
                 key={cat}
                 onClick={() => handleCategoryToggle(cat)}
-                className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
+                className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
                   isActive
-                    ? `${colors.bg} ${colors.text} ${colors.border} shadow-md`
-                    : 'bg-white text-gray-600 border-gray-200 hover:border-gray-400 hover:text-gray-800'
+                    ? 'bg-coral-prime text-white border-coral-prime shadow-md'
+                    : 'bg-white text-gray-600 border-gray-200 hover:border-coral-prime hover:text-coral-prime'
                 }`}
               >
                 {cat} ({count})

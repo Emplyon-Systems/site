@@ -2,14 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, Calendar, Clock, Tag } from 'lucide-react';
 import { getLatestPosts } from '@/data/blogPosts';
 
-const CATEGORY_COLORS = {
-  Compliance:  { bg: 'bg-blue-100',   text: 'text-blue-700'   },
-  Gestão:      { bg: 'bg-purple-100', text: 'text-purple-700' },
-  Operação:    { bg: 'bg-emerald-100',text: 'text-emerald-700'},
-  Tecnologia:  { bg: 'bg-indigo-100', text: 'text-indigo-700' },
-  Pessoas:     { bg: 'bg-rose-100',   text: 'text-rose-700'   },
-  Dados:       { bg: 'bg-amber-100',  text: 'text-amber-700'  },
-};
+const CAT_CLASS = 'bg-coral-prime text-white';
 
 function formatDate(iso) {
   const d = new Date(iso + 'T12:00:00');
@@ -46,7 +39,6 @@ export function BlogSection() {
         {/* Cards */}
         <ul className="grid md:grid-cols-3 gap-8 list-none p-0 m-0">
           {latest.map((post, i) => {
-            const catColors = CATEGORY_COLORS[post.category] ?? { bg: 'bg-gray-100', text: 'text-gray-700' };
             return (
               <li key={post.id} className={i === 0 ? 'md:col-span-1' : ''}>
                 <Link
@@ -63,7 +55,7 @@ export function BlogSection() {
                     />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
                     <span
-                      className={`absolute bottom-3 left-3 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${catColors.bg} ${catColors.text}`}
+                      className={`absolute bottom-3 left-3 inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${CAT_CLASS}`}
                     >
                       {post.category}
                     </span>
