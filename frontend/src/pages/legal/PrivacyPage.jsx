@@ -2,7 +2,12 @@ import { LegalPage, Section, P, Ul } from './LegalPage';
 
 export function PrivacyPage() {
   return (
-    <LegalPage title="Política de Privacidade" lastUpdated="24 de abril de 2026">
+    <LegalPage
+      title="Política de Privacidade"
+      path="/privacidade"
+      lastUpdated="24 de abril de 2026"
+      seoDescription="Política de privacidade Emplyon (LGPD): como tratamos dados pessoais, bases legais, direitos do titular e contacto do encarregado."
+    >
       <Section title="1. Introdução">
         <P>
           A <strong>Emplyon Systems</strong> respeita a sua privacidade e está comprometida em proteger

@@ -2,7 +2,12 @@ import { LegalPage, Section, P, Ul } from './LegalPage';
 
 export function TermsPage() {
   return (
-    <LegalPage title="Termos de Uso" lastUpdated="24 de abril de 2026">
+    <LegalPage
+      title="Termos de Uso"
+      path="/termos"
+      lastUpdated="24 de abril de 2026"
+      seoDescription="Termos de utilização da plataforma Emplyon: condições de uso, serviços de gestão de escalas, conformidade e responsabilidades."
+    >
       <Section title="1. Aceitação dos Termos">
         <P>
           Ao acessar ou utilizar a plataforma <strong>Emplyon</strong>, você concorda com estes Termos de

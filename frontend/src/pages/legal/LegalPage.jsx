@@ -3,13 +3,36 @@ import { ArrowLeft } from 'lucide-react';
 import { SiteHeader } from '@/components/SiteHeader';
 import { WhatsAppWidget } from '@/components/WhatsAppWidget';
 import Footer from '@/components/Footer';
+import { Seo } from '@/components/seo/Seo';
+import { SITE_URL } from '@/lib/siteConfig';
 
 /**
  * Layout base compartilhado pelas páginas legais (Termos, Privacidade, Cookies).
+ * @param {string} path — caminho canónico, ex. /termos
+ * @param {string} [seoDescription] — meta description (recomendado 120–160 caracteres)
  */
-export function LegalPage({ title, lastUpdated, children }) {
+export function LegalPage({ title, lastUpdated, path, seoDescription, children }) {
+  const desc =
+    seoDescription
+    || `${title} — Emplyon Systems. Informações legais e transparência para utilizadores da plataforma de gestão de escalas.`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebPage',
+    name: title,
+    description: desc,
+    url: `${SITE_URL}${path}`,
+    isPartOf: { '@type': 'WebSite', name: 'Emplyon', url: SITE_URL },
+    inLanguage: 'pt-BR',
+  };
+
   return (
     <div className="min-h-screen bg-white font-sans text-deep-navy">
+      <Seo
+        title={`${title} | Emplyon`}
+        description={desc.slice(0, 165)}
+        path={path}
+        jsonLd={jsonLd}
+      />
       <SiteHeader />
 
       {/* Hero simples */}

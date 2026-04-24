@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -12,12 +12,21 @@ import {
 } from 'lucide-react';
 import { SiteHeader } from '@/components/SiteHeader';
 import { WhatsAppWidget } from '@/components/WhatsAppWidget';
-import { getAllPosts, getAllCategories } from '@/data/blogPosts';
 import Footer from '@/components/Footer';
+import { fetchPublicCategories, fetchPublicPosts } from '@/lib/blogApi';
+import { Seo } from '@/components/seo/Seo';
+import { blogListSchema } from '@/lib/seoSchemas';
 
 const POSTS_PER_PAGE = 4;
 
+const BLOG_LIST_DESCRIPTION =
+  'Artigos sobre escalas de trabalho, conformidade trabalhista, liderança operacional, RH e dados — Blog Emplyon.';
+const BLOG_LIST_KEYWORDS =
+  'blog RH, escalas de trabalho, conformidade CLT, gestão de operações, absenteísmo, blog Emplyon';
+const SEARCH_DEBOUNCE_MS = 400;
+
 function formatDate(iso) {
+  if (!iso) return '—';
   const d = new Date(iso + 'T12:00:00');
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
@@ -42,7 +51,6 @@ function BlogCard({ post, featured = false }) {
         featured ? 'md:flex-row' : ''
       }`}
     >
-      {/* Image */}
       <div className={`relative overflow-hidden bg-gray-100 ${featured ? 'md:w-1/2 h-56 md:h-auto' : 'h-48'}`}>
         <img
           src={post.coverImage}
@@ -56,7 +64,6 @@ function BlogCard({ post, featured = false }) {
         </div>
       </div>
 
-      {/* Body */}
       <div className={`flex flex-col flex-1 p-6 ${featured ? '' : ''}`}>
         <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500 mb-3">
           <span className="inline-flex items-center gap-1">
@@ -78,7 +85,6 @@ function BlogCard({ post, featured = false }) {
         </h2>
         <p className="mt-2 text-sm text-gray-600 leading-relaxed line-clamp-3 flex-1">{post.excerpt}</p>
 
-        {/* Tags */}
         {post.tags?.length > 0 && (
           <div className="mt-4 flex flex-wrap gap-1.5">
             {post.tags.map((tag) => (
@@ -113,6 +119,7 @@ function Pagination({ currentPage, totalPages, onPage }) {
   return (
     <nav className="flex items-center justify-center gap-2 mt-12" aria-label="Paginação">
       <button
+        type="button"
         onClick={() => onPage(currentPage - 1)}
         disabled={currentPage === 1}
         className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:border-royal-blue hover:text-royal-blue disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -124,6 +131,7 @@ function Pagination({ currentPage, totalPages, onPage }) {
       {pages.map((p) => (
         <button
           key={p}
+          type="button"
           onClick={() => onPage(p)}
           aria-current={p === currentPage ? 'page' : undefined}
           className={`w-9 h-9 rounded-lg text-sm font-medium transition-colors ${
@@ -137,6 +145,7 @@ function Pagination({ currentPage, totalPages, onPage }) {
       ))}
 
       <button
+        type="button"
         onClick={() => onPage(currentPage + 1)}
         disabled={currentPage === totalPages}
         className="p-2 rounded-lg border border-gray-200 text-gray-600 hover:border-royal-blue hover:text-royal-blue disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -149,49 +158,112 @@ function Pagination({ currentPage, totalPages, onPage }) {
 }
 
 export function BlogListPage() {
-  const allPosts = getAllPosts();
-  const categories = getAllCategories();
-
+  const [categories, setCategories] = useState([]);
+  const [posts, setPosts] = useState([]);
+  const [meta, setMeta] = useState({
+    current_page: 1,
+    last_page: 1,
+    per_page: POSTS_PER_PAGE,
+    total: 0,
+  });
   const [query, setQuery] = useState('');
-  const [activeCategory, setActiveCategory] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [activeCategorySlug, setActiveCategorySlug] = useState('');
   const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
-  const filtered = useMemo(() => {
-    const q = query.toLowerCase().trim();
-    return allPosts.filter((p) => {
-      const matchCat = activeCategory ? p.category === activeCategory : true;
-      const matchQuery =
-        !q ||
-        p.title.toLowerCase().includes(q) ||
-        p.excerpt.toLowerCase().includes(q) ||
-        p.tags?.some((t) => t.toLowerCase().includes(q));
-      return matchCat && matchQuery;
-    });
-  }, [allPosts, query, activeCategory]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [query]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / POSTS_PER_PAGE));
-  const paginated = filtered.slice((page - 1) * POSTS_PER_PAGE, page * POSTS_PER_PAGE);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await fetchPublicCategories();
+        if (!cancelled) setCategories(Array.isArray(data) ? data : []);
+      } catch {
+        if (!cancelled) setCategories([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
-  useEffect(() => { setPage(1); }, [query, activeCategory]);
+  useEffect(() => {
+    setPage(1);
+  }, [activeCategorySlug, debouncedQuery]);
 
-  const handleCategoryToggle = (cat) => {
-    setActiveCategory((prev) => (prev === cat ? '' : cat));
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetchPublicPosts({
+          page,
+          perPage: POSTS_PER_PAGE,
+          categorySlug: activeCategorySlug,
+          search: debouncedQuery,
+        });
+        if (cancelled) return;
+        setPosts(res.data ?? []);
+        const m = res.meta;
+        if (m) {
+          setMeta({
+            current_page: m.current_page ?? 1,
+            last_page: m.last_page ?? 1,
+            per_page: m.per_page ?? POSTS_PER_PAGE,
+            total: m.total ?? 0,
+          });
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setError(e.message || 'Não foi possível carregar o blog.');
+          setPosts([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [page, activeCategorySlug, debouncedQuery]);
+
+  const totalPages = Math.max(1, meta.last_page);
+  const hasFilters = Boolean(debouncedQuery.trim() || activeCategorySlug);
+
+  const activeCategoryLabel = useMemo(() => {
+    if (!activeCategorySlug) return '';
+    const c = categories.find((x) => x.slug === activeCategorySlug);
+    return c?.name ?? activeCategorySlug;
+  }, [categories, activeCategorySlug]);
+
+  const handleCategoryToggle = (slug) => {
+    setActiveCategorySlug((prev) => (prev === slug ? '' : slug));
   };
 
   const clearFilters = () => {
     setQuery('');
-    setActiveCategory('');
+    setDebouncedQuery('');
+    setActiveCategorySlug('');
   };
 
-  const hasFilters = query || activeCategory;
+  const resultCount = meta.total;
+  const showFeatured = page === 1 && !hasFilters && posts.length > 0;
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-deep-navy">
+      <Seo
+        title="Blog — Insights sobre escalas, RH e operação | Emplyon"
+        description={BLOG_LIST_DESCRIPTION}
+        path="/blog"
+        keywords={BLOG_LIST_KEYWORDS}
+        jsonLd={blogListSchema()}
+      />
       <SiteHeader />
 
-      {/* Hero com imagem de fundo */}
       <div className="relative overflow-hidden h-[52vh] min-h-[380px] md:h-[58vh]">
-        {/* Imagem de fundo */}
         <img
           src="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=1600&q=80&auto=format&fit=crop"
           alt=""
@@ -200,13 +272,10 @@ export function BlogListPage() {
           loading="eager"
         />
 
-        {/* Gradiente branco no topo — protege o header */}
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white via-white/60 to-transparent pointer-events-none" />
 
-        {/* Gradiente escuro na base — área do título */}
         <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-deep-navy/95 via-deep-navy/75 to-transparent pointer-events-none" />
 
-        {/* Conteúdo centralizado na base */}
         <div className="absolute inset-0 flex flex-col justify-end pb-10 md:pb-14 px-4 sm:px-6">
           <div className="max-w-3xl mx-auto w-full text-center">
             <p className="text-blue-300 font-semibold text-xs uppercase tracking-[0.2em] mb-4">
@@ -219,7 +288,6 @@ export function BlogListPage() {
               Escala, conformidade e pessoas — direto ao ponto, sem enrolação.
             </p>
 
-            {/* Search */}
             <div className="mt-8 relative max-w-md mx-auto">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70 pointer-events-none" />
               <input
@@ -231,6 +299,7 @@ export function BlogListPage() {
               />
               {query && (
                 <button
+                  type="button"
                   onClick={() => setQuery('')}
                   className="absolute right-4 top-1/2 -translate-y-1/2 text-white/50 hover:text-white transition-colors"
                   aria-label="Limpar pesquisa"
@@ -243,50 +312,59 @@ export function BlogListPage() {
         </div>
       </div>
 
-      {/* Filters & Content */}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-        {/* Category chips */}
         <div className="flex flex-wrap items-center gap-2 mb-8">
           <button
-            onClick={() => setActiveCategory('')}
+            type="button"
+            onClick={() => setActiveCategorySlug('')}
             className={`px-4 py-1.5 rounded-full text-sm font-medium border transition-all ${
-              !activeCategory
+              !activeCategorySlug
                 ? 'bg-deep-navy text-white border-deep-navy shadow-md'
                 : 'bg-white text-gray-600 border-gray-200 hover:border-deep-navy hover:text-deep-navy'
             }`}
           >
-            Todos ({allPosts.length})
+            Todos
           </button>
           {categories.map((cat) => {
-            const count = allPosts.filter((p) => p.category === cat).length;
-            const isActive = activeCategory === cat;
+            const isActive = activeCategorySlug === cat.slug;
             return (
               <button
-                key={cat}
-                onClick={() => handleCategoryToggle(cat)}
+                key={cat.id}
+                type="button"
+                onClick={() => handleCategoryToggle(cat.slug)}
                 className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-all ${
                   isActive
                     ? 'bg-coral-prime text-white border-coral-prime shadow-md'
                     : 'bg-white text-gray-600 border-gray-200 hover:border-coral-prime hover:text-coral-prime'
                 }`}
               >
-                {cat} ({count})
+                {cat.name}
               </button>
             );
           })}
         </div>
 
-        {/* Results count + clear */}
         <div className="flex items-center justify-between mb-6 min-h-[28px]">
           <p className="text-sm text-gray-500">
-            {filtered.length === 0
+            {error ? <span className="text-red-600">{error}</span> : null}
+            {!error && loading ? 'A carregar…' : null}
+            {!error && !loading && resultCount === 0
               ? 'Nenhum artigo encontrado'
-              : `${filtered.length} artigo${filtered.length !== 1 ? 's' : ''} encontrado${filtered.length !== 1 ? 's' : ''}`}
-            {activeCategory && <span className="font-medium text-gray-700"> em <em>{activeCategory}</em></span>}
+              : null}
+            {!error && !loading && resultCount > 0
+              ? `${resultCount} artigo${resultCount !== 1 ? 's' : ''} encontrado${resultCount !== 1 ? 's' : ''}`
+              : null}
+            {!error && !loading && activeCategoryLabel ? (
+              <span className="font-medium text-gray-700">
+                {' '}
+                em <em>{activeCategoryLabel}</em>
+              </span>
+            ) : null}
           </p>
           {hasFilters && (
             <button
+              type="button"
               onClick={clearFilters}
               className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-coral-prime transition-colors"
             >
@@ -296,28 +374,29 @@ export function BlogListPage() {
           )}
         </div>
 
-        {/* Grid */}
-        {paginated.length === 0 ? (
+        {!error && !loading && posts.length === 0 ? (
           <div className="py-24 text-center">
             <p className="text-5xl mb-4">🔍</p>
             <p className="text-xl font-heading font-bold text-deep-navy">Nenhum resultado</p>
             <p className="mt-2 text-gray-500">Tente outro termo ou remova os filtros.</p>
             <button
+              type="button"
               onClick={clearFilters}
               className="mt-6 inline-flex items-center gap-2 bg-royal-blue text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
             >
               Ver todos os artigos
             </button>
           </div>
-        ) : (
+        ) : null}
+
+        {!error && !loading && posts.length > 0 ? (
           <>
-            {/* Featured (first on page 1 with no active filter) */}
-            {page === 1 && !hasFilters && paginated.length > 0 ? (
+            {showFeatured ? (
               <div className="space-y-6">
-                <BlogCard post={paginated[0]} featured />
-                {paginated.length > 1 && (
+                <BlogCard post={posts[0]} featured />
+                {posts.length > 1 && (
                   <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {paginated.slice(1).map((post) => (
+                    {posts.slice(1).map((post) => (
                       <BlogCard key={post.id} post={post} />
                     ))}
                   </div>
@@ -325,13 +404,13 @@ export function BlogListPage() {
               </div>
             ) : (
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                {paginated.map((post) => (
+                {posts.map((post) => (
                   <BlogCard key={post.id} post={post} />
                 ))}
               </div>
             )}
           </>
-        )}
+        ) : null}
 
         <Pagination
           currentPage={page}

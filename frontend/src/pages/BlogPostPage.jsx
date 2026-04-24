@@ -1,57 +1,171 @@
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, Navigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Clock, Tag, ArrowRight } from 'lucide-react';
 import { SiteHeader } from '@/components/SiteHeader';
 import { BlogContent } from '@/components/BlogContent';
 import { WhatsAppWidget } from '@/components/WhatsAppWidget';
-import { getPostBySlug, getAllPosts } from '@/data/blogPosts';
 import Footer from '@/components/Footer';
+import { fetchPublicPost, fetchRelatedPosts } from '@/lib/blogApi';
+import { Seo } from '@/components/seo/Seo';
+import { SITE_NAME, SITE_URL, absoluteUrl } from '@/lib/siteConfig';
 
 const CAT_CLASS = 'bg-coral-prime text-white';
 const CAT_CLASS_DARK = 'bg-coral-prime text-white';
 
 function formatDate(iso) {
+  if (!iso) return '—';
   const d = new Date(iso + 'T12:00:00');
   return d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+function dateToIso8601(dateStr) {
+  if (!dateStr) return undefined;
+  const d = new Date(`${dateStr}T12:00:00.000Z`);
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
 export function BlogPostPage() {
   const { slug } = useParams();
-  const post = getPostBySlug(slug);
-  const all = getAllPosts();
-  const related = all.filter((p) => p.id !== post?.id).slice(0, 3);
+  const [post, setPost] = useState(null);
+  const [related, setRelated] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [notFound, setNotFound] = useState(false);
 
-  if (!post) return <Navigate to="/blog" replace />;
+  useEffect(() => {
+    if (!slug) {
+      setNotFound(true);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      setNotFound(false);
+      try {
+        const data = await fetchPublicPost(slug);
+        if (cancelled) return;
+        setPost(data);
+        const rel = await fetchRelatedPosts(slug);
+        if (cancelled) return;
+        setRelated(Array.isArray(rel) ? rel : []);
+      } catch {
+        if (!cancelled) {
+          setPost(null);
+          setRelated([]);
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [slug]);
 
+  const publishedIso = post ? dateToIso8601(post.date) : undefined;
+  const metaKeywords = post ? [post.category, ...(post.tags || [])].filter(Boolean).join(', ') : '';
+
+  const jsonLd = useMemo(() => {
+    if (!post) return [];
+    const pageUrl = `${SITE_URL}/blog/${post.slug}`;
+    const imageUrl = absoluteUrl(post.coverImage);
+    const pub = dateToIso8601(post.date);
+    const blogPosting = {
+      '@context': 'https://schema.org',
+      '@type': 'BlogPosting',
+      headline: post.title,
+      description: post.excerpt,
+      image: [imageUrl],
+      datePublished: pub,
+      dateModified: pub,
+      author: {
+        '@type': 'Person',
+        name: post.author || SITE_NAME,
+      },
+      publisher: {
+        '@type': 'Organization',
+        name: SITE_NAME,
+        logo: {
+          '@type': 'ImageObject',
+          url: `${SITE_URL}/logo.png`,
+        },
+      },
+      mainEntityOfPage: {
+        '@type': 'WebPage',
+        '@id': pageUrl,
+      },
+      url: pageUrl,
+      articleSection: post.category,
+      keywords: metaKeywords,
+      inLanguage: 'pt-BR',
+    };
+    const breadcrumbs = {
+      '@context': 'https://schema.org',
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Início', item: SITE_URL },
+        { '@type': 'ListItem', position: 2, name: 'Blog', item: `${SITE_URL}/blog` },
+        { '@type': 'ListItem', position: 3, name: post.title, item: pageUrl },
+      ],
+    };
+    return [blogPosting, breadcrumbs];
+  }, [post, metaKeywords]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-white font-sans text-deep-navy">
+        <SiteHeader />
+        <div className="mx-auto max-w-3xl px-4 py-24 text-center text-sm text-gray-500">
+          A carregar artigo…
+        </div>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (notFound || !post) {
+    return <Navigate to="/blog" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-white font-sans text-deep-navy">
+      <Seo
+        title={`${post.title} | Blog ${SITE_NAME}`}
+        description={post.excerpt}
+        path={`/blog/${post.slug}`}
+        image={post.coverImage}
+        type="article"
+        keywords={metaKeywords}
+        article={{
+          publishedTime: publishedIso,
+          modifiedTime: publishedIso,
+          section: post.category,
+          author: post.author,
+        }}
+        jsonLd={jsonLd}
+      />
       <SiteHeader />
 
-      {/* ── Hero Banner (tela cheia) ── */}
-      <div className="relative w-full h-[62vh] min-h-[440px] md:h-[72vh] overflow-hidden">
+      <div className="relative w-full h-[40vh] min-h-[260px] max-h-[420px] sm:min-h-[300px] md:h-[44vh] md:max-h-[460px] overflow-hidden">
         <img
           src={post.coverImage}
           alt={post.title}
           className="absolute inset-0 w-full h-full object-cover scale-105"
           loading="eager"
         />
-        {/* Gradiente branco no topo → protege o nav */}
         <div className="absolute inset-x-0 top-0 h-40 bg-gradient-to-b from-white via-white/55 to-transparent" />
-        {/* Gradiente escuro na base → área do título */}
         <div className="absolute inset-x-0 bottom-0 h-4/5 bg-gradient-to-t from-deep-navy/95 via-deep-navy/70 to-transparent" />
 
-        {/* Conteúdo do banner */}
-        <div className="absolute inset-0 flex flex-col justify-end pb-12 md:pb-16 px-4 sm:px-8 lg:px-12">
+        <div className="absolute inset-0 flex flex-col justify-end pb-8 md:pb-10 px-4 sm:px-8 lg:px-12">
           <div className="max-w-5xl mx-auto w-full">
             <Link
               to="/blog"
-              className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors mb-5"
+              className="inline-flex items-center gap-1.5 text-white/70 hover:text-white text-sm font-medium transition-colors mb-3"
             >
               <ArrowLeft className="w-4 h-4" />
               Todos os artigos
             </Link>
 
-            <div className="flex flex-wrap items-center gap-2 mb-5">
+            <div className="flex flex-wrap items-center gap-2 mb-3">
               <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold ${CAT_CLASS_DARK}`}>
                 {post.category}
               </span>
@@ -63,11 +177,11 @@ export function BlogPostPage() {
               ))}
             </div>
 
-            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-heading font-bold text-white leading-tight max-w-4xl">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-heading font-bold text-white leading-tight max-w-4xl">
               {post.title}
             </h1>
 
-            <div className="mt-6 flex flex-wrap items-center gap-3 text-sm text-white/65">
+            <div className="mt-4 flex flex-wrap items-center gap-3 text-sm text-white/65">
               <span className="font-semibold text-white/90">{post.author}</span>
               <span className="w-1 h-1 rounded-full bg-white/35" />
               <span className="inline-flex items-center gap-1.5">
@@ -84,20 +198,16 @@ export function BlogPostPage() {
         </div>
       </div>
 
-      {/* ── Layout de artigo: coluna de leitura + sidebar ── */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-14 md:py-20">
         <div className="flex flex-col lg:flex-row gap-12 xl:gap-16 items-start">
 
-          {/* Coluna principal */}
           <article className="flex-1 min-w-0">
-            {/* Lead */}
             <p className="text-xl md:text-2xl text-gray-600 leading-relaxed border-l-4 border-royal-blue pl-6 py-1 mb-10 font-light italic">
               {post.excerpt}
             </p>
 
             <BlogContent blocks={post.content} />
 
-            {/* CTA */}
             <div className="mt-16 rounded-3xl bg-deep-navy p-8 md:p-12 text-center relative overflow-hidden">
               <div className="absolute -top-12 -right-12 w-52 h-52 bg-royal-blue/20 rounded-full blur-3xl pointer-events-none" />
               <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-coral-prime/10 rounded-full blur-3xl pointer-events-none" />
@@ -120,43 +230,40 @@ export function BlogPostPage() {
             </div>
           </article>
 
-          {/* Sidebar — artigos relacionados */}
           {related.length > 0 && (
             <aside className="w-full lg:w-80 xl:w-96 shrink-0">
               <div className="lg:sticky lg:top-28 space-y-5">
                 <h2 className="text-base font-heading font-bold text-deep-navy uppercase tracking-wide border-b border-gray-100 pb-3">
                   Continue lendo
                 </h2>
-                {related.map((p) => {
-                  return (
-                    <Link
-                      key={p.id}
-                      to={`/blog/${p.slug}`}
-                      className="group flex gap-4 items-start p-3 rounded-2xl hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-gray-100">
-                        <img
-                          src={p.coverImage}
-                          alt={p.title}
-                          loading="lazy"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold mb-1 ${CAT_CLASS}`}>
-                          {p.category}
-                        </span>
-                        <p className="font-heading font-bold text-deep-navy text-sm leading-snug line-clamp-2 group-hover:text-royal-blue transition-colors">
-                          {p.title}
-                        </p>
-                        <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-royal-blue">
-                          Ler <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                        </span>
-                      </div>
-                    </Link>
-                  );
-                })}
+                {related.map((p) => (
+                  <Link
+                    key={p.id}
+                    to={`/blog/${p.slug}`}
+                    className="group flex gap-4 items-start p-3 rounded-2xl hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="relative w-20 h-20 shrink-0 rounded-xl overflow-hidden bg-gray-100">
+                      <img
+                        src={p.coverImage}
+                        alt={p.title}
+                        loading="lazy"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold mb-1 ${CAT_CLASS}`}>
+                        {p.category}
+                      </span>
+                      <p className="font-heading font-bold text-deep-navy text-sm leading-snug line-clamp-2 group-hover:text-royal-blue transition-colors">
+                        {p.title}
+                      </p>
+                      <span className="mt-1.5 inline-flex items-center gap-1 text-xs font-medium text-royal-blue">
+                        Ler <ArrowRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
+                      </span>
+                    </div>
+                  </Link>
+                ))}
               </div>
             </aside>
           )}

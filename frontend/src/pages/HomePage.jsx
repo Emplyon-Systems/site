@@ -3,6 +3,9 @@ import { HeroSection } from '@/components/HeroSection';
 import { BlogSection } from '@/components/BlogSection';
 import { WhatsAppWidget } from '@/components/WhatsAppWidget';
 import Footer from '@/components/Footer';
+import { Seo } from '@/components/seo/Seo';
+import { DEFAULT_DESCRIPTION, DEFAULT_KEYWORDS } from '@/lib/siteConfig';
+import { organizationAndWebsiteSchema } from '@/lib/seoSchemas';
 
 const Benefits = lazy(() => import('@/components/Benefits'));
 const HowItWorks = lazy(() => import('@/components/HowItWorks'));
@@ -21,6 +24,13 @@ const TabsDemo = lazy(() =>
 export function HomePage() {
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-deep-navy">
+      <Seo
+        title="Emplyon — Gestão inteligente de escalas e pessoas"
+        description={DEFAULT_DESCRIPTION}
+        path="/"
+        keywords={DEFAULT_KEYWORDS}
+        jsonLd={organizationAndWebsiteSchema()}
+      />
       <HeroSection />
       <main>
         <Suspense fallback={<div className="py-20 text-center">Carregando...</div>}>

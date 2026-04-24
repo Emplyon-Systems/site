@@ -8,7 +8,12 @@ const cookieTable = [
 
 export function CookiesPage() {
   return (
-    <LegalPage title="Política de Cookies" lastUpdated="24 de abril de 2026">
+    <LegalPage
+      title="Política de Cookies"
+      path="/cookies"
+      lastUpdated="24 de abril de 2026"
+      seoDescription="Política de cookies Emplyon: tipos de cookies, finalidades, consentimento e como gerir preferências no navegador."
+    >
       <Section title="1. O que são Cookies?">
         <P>
           Cookies são pequenos arquivos de texto armazenados no seu navegador quando você visita um
