@@ -23,8 +23,8 @@ export function BlogPostPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-deep-navy">
-      <SiteHeader variant="blog" />
-      <article className="pt-28 md:pt-32 pb-20">
+      <SiteHeader />
+      <article className="pt-24 md:pt-28 pb-20">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <Link
             to="/blog"

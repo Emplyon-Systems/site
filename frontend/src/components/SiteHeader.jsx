@@ -11,17 +11,10 @@ const defaultMenuItems = [
   { name: 'FAQ', to: '/#faq' },
 ];
 
-const blogMenuItems = [
-  { name: 'Início', to: '/' },
-  { name: 'Blog', to: '/blog' },
-  { name: 'Orçamento', to: '/#orcamento' },
-];
 
-export function SiteHeader({ menuItems = defaultMenuItems, variant = 'default' } = {}) {
+export function SiteHeader({ menuItems = defaultMenuItems } = {}) {
   const [menuState, setMenuState] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
-
-  const items = variant === 'blog' ? blogMenuItems : menuItems;
 
   useEffect(() => {
     const handleScroll = () => {
@@ -74,7 +67,7 @@ export function SiteHeader({ menuItems = defaultMenuItems, variant = 'default' }
 
             <div className="absolute inset-0 m-auto hidden size-fit lg:block">
               <ul className="flex gap-8 text-sm font-medium">
-                {items.map((item) => (
+                {menuItems.map((item) => (
                   <li key={item.to + item.name}>
                     <Link
                       to={item.to}
@@ -95,7 +88,7 @@ export function SiteHeader({ menuItems = defaultMenuItems, variant = 'default' }
             >
               <div className="lg:hidden">
                 <ul className="space-y-4 text-base font-medium text-deep-navy">
-                  {items.map((item) => (
+                  {menuItems.map((item) => (
                     <li key={item.to + item.name + 'm'}>
                       <Link
                         to={item.to}

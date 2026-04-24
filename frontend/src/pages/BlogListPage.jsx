@@ -200,10 +200,13 @@ export function BlogListPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans text-deep-navy">
-      <SiteHeader variant="blog" />
+      <SiteHeader />
+
+      {/* Espaço branco acima do hero para o header transparente não sobrepor o azul escuro */}
+      <div className="h-20 md:h-24 bg-white" />
 
       {/* Hero */}
-      <div className="relative bg-deep-navy pt-28 pb-16 overflow-hidden">
+      <div className="relative bg-deep-navy pt-10 pb-16 overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-deep-navy via-[#013a73] to-[#0179FE]/30 pointer-events-none" />
         <div className="absolute -top-32 -right-32 w-96 h-96 bg-royal-blue/20 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute -bottom-20 -left-20 w-64 h-64 bg-coral-prime/10 rounded-full blur-3xl pointer-events-none" />
