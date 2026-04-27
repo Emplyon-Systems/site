@@ -16,6 +16,12 @@ import { AdminPostEditorPage } from '@/pages/admin/AdminPostEditorPage';
 import { AdminPostPreviewPage } from '@/pages/admin/AdminPostPreviewPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
 import { AdminContactRequestsPage } from '@/pages/admin/AdminContactRequestsPage';
+import { AdminAutomationPostsPage } from '@/pages/admin/AdminAutomationPostsPage';
+import { AdminAutomationCreatePage } from '@/pages/admin/AdminAutomationCreatePage';
+import { AdminAutomationEditorPage } from '@/pages/admin/AdminAutomationEditorPage';
+import { AdminAutomationDashboardPage } from '@/pages/admin/AdminAutomationDashboardPage';
+import { AdminAutomationSettingsPage } from '@/pages/admin/AdminAutomationSettingsPage';
+import { AdminAutomationPreviewPage } from '@/pages/admin/AdminAutomationPreviewPage';
 import { CookieBanner } from '@/components/CookieBanner';
 import { PageViewTracker } from '@/components/PageViewTracker';
 import { useAuth } from '@/contexts/AuthContext';
@@ -103,6 +109,42 @@ function App() {
           <Route path="blog/artigos/novo" element={<AdminPostEditorPage />} />
           <Route path="blog/artigos/:id/editar" element={<AdminPostEditorPage />} />
           <Route path="blog/artigos/:id" element={<AdminPostPreviewPage />} />
+          <Route path="blog/automacao" element={<AdminAutomationDashboardPage />} />
+          <Route path="blog/automacao/configuracao" element={<AdminAutomationSettingsPage />} />
+          <Route path="blog/automacao/criar" element={<AdminAutomationCreatePage />} />
+          <Route
+            path="blog/automacao/na-fila"
+            element={(
+              <AdminAutomationPostsPage
+                fixedStatus="queue"
+                title="Automacao / Na fila"
+                description="Posts aguardando processamento."
+              />
+            )}
+          />
+          <Route
+            path="blog/automacao/prontos"
+            element={(
+              <AdminAutomationPostsPage
+                fixedStatus="ready"
+                title="Automacao / Prontos"
+                description="Posts processados e prontos para revisao."
+                cardView
+              />
+            )}
+          />
+          <Route
+            path="blog/automacao/erros"
+            element={(
+              <AdminAutomationPostsPage
+                fixedStatus="error"
+                title="Automacao / Erros"
+                description="Posts com falha no processamento."
+              />
+            )}
+          />
+          <Route path="blog/automacao/:postId" element={<AdminAutomationEditorPage />} />
+          <Route path="blog/automacao/:postId/preview" element={<AdminAutomationPreviewPage />} />
         </Route>
       </Routes>
     </>

@@ -1,5 +1,18 @@
-import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, FolderTree, ExternalLink, Users, MessagesSquare } from 'lucide-react';
+import { NavLink, useLocation } from 'react-router-dom';
+import {
+  LayoutDashboard,
+  FileText,
+  FolderTree,
+  ExternalLink,
+  Users,
+  MessagesSquare,
+  Bot,
+  Settings,
+  PenSquare,
+  Clock3,
+  CheckCircle2,
+  AlertTriangle,
+} from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const linkClass = ({ isActive }) =>
@@ -11,6 +24,9 @@ const linkClass = ({ isActive }) =>
   );
 
 export function AdminSidebar() {
+  const location = useLocation();
+  const automationOpen = location.pathname.startsWith('/admin/blog/automacao');
+
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-gray-200 bg-white">
       <div className="flex h-16 items-center gap-2 border-b border-gray-100 px-4">
@@ -40,6 +56,38 @@ export function AdminSidebar() {
           <FolderTree className="size-4 shrink-0 opacity-90" />
           Categorias
         </NavLink>
+        <NavLink to="/admin/blog/automacao" className={linkClass}>
+          <Bot className="size-4 shrink-0 opacity-90" />
+          Automacao
+        </NavLink>
+        {automationOpen ? (
+          <div className="ml-3 border-l border-gray-200 pl-2">
+            <NavLink to="/admin/blog/automacao" end className={linkClass}>
+              <LayoutDashboard className="size-4 shrink-0 opacity-90" />
+              Dashboard
+            </NavLink>
+            <NavLink to="/admin/blog/automacao/configuracao" className={linkClass}>
+              <Settings className="size-4 shrink-0 opacity-90" />
+              Configuracao
+            </NavLink>
+            <NavLink to="/admin/blog/automacao/criar" className={linkClass}>
+              <PenSquare className="size-4 shrink-0 opacity-90" />
+              Criar post
+            </NavLink>
+            <NavLink to="/admin/blog/automacao/na-fila" className={linkClass}>
+              <Clock3 className="size-4 shrink-0 opacity-90" />
+              Na fila
+            </NavLink>
+            <NavLink to="/admin/blog/automacao/prontos" className={linkClass}>
+              <CheckCircle2 className="size-4 shrink-0 opacity-90" />
+              Prontos
+            </NavLink>
+            <NavLink to="/admin/blog/automacao/erros" className={linkClass}>
+              <AlertTriangle className="size-4 shrink-0 opacity-90" />
+              Erros
+            </NavLink>
+          </div>
+        ) : null}
       </nav>
 
       <div className="border-t border-gray-100 p-3">

@@ -4,9 +4,50 @@ import { Calendar, ExternalLink, Eye, Pencil, Plus, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminDeletePost, adminListPosts } from '@/lib/blogApi';
+import { deletePost as deleteAutomationPost, listPosts as listAutomationPosts } from '@/lib/postsApi';
 
 /** Itens por página na grelha (3×3 em ecrãs largos). */
 const PAGE_SIZE = 9;
+
+function normalizeSlug(s) {
+  if (typeof s !== 'string' || !s.trim()) return '';
+  return s.trim().toLowerCase();
+}
+
+/** Slugs dos posts de automação — espelhos Laravel com o mesmo slug são omitidos para não duplicar nem aparecer como manual. */
+function automationSlugSet(automationItems) {
+  const set = new Set();
+  for (const a of automationItems) {
+    const n = normalizeSlug(a?.slug);
+    if (n) set.add(n);
+  }
+  return set;
+}
+
+function mergeManualAndAutomationLists(manualItems, automationItems, mapManualPostFn, mapAutomationPostFn, detectSourceFn) {
+  const slugSet = automationSlugSet(automationItems);
+  const filteredManual = manualItems.filter((item) => {
+    const n = normalizeSlug(item?.slug);
+    if (!n) return true;
+    return !slugSet.has(n);
+  });
+
+  const mappedManual = filteredManual.map((item) => {
+    const source = detectSourceFn(item);
+    return source === 'ia' ? mapAutomationPostFn(item) : mapManualPostFn(item);
+  });
+  const mappedAutomation = automationItems.map(mapAutomationPostFn);
+
+  const mergedMap = new Map();
+  [...mappedManual, ...mappedAutomation].forEach((item) => {
+    if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
+  });
+  return Array.from(mergedMap.values()).sort((a, b) => {
+    const da = new Date(a.dateIso || 0).getTime();
+    const db = new Date(b.dateIso || 0).getTime();
+    return db - da;
+  });
+}
 
 function formatShortDate(iso) {
   if (!iso) return '—';
@@ -17,7 +58,7 @@ function formatShortDate(iso) {
 
 export function AdminPostsPage() {
   const { token } = useAuth();
-  const [posts, setPosts] = useState([]);
+  const [allPosts, setAllPosts] = useState([]);
   const [meta, setMeta] = useState({
     current_page: 1,
     last_page: 1,
@@ -28,9 +69,53 @@ export function AdminPostsPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
 
+  function detectSource(post) {
+    if (post?.source === 'ia' || post?.source === 'automation') return 'ia';
+    if (post?.isAutomation === true || post?.origin === 'automation') return 'ia';
+    if (typeof post?.researchQuery === 'string' && post.researchQuery.trim()) return 'ia';
+    return 'manual';
+  }
+
+  function mapManualPost(post) {
+    return {
+      id: `manual:${post.id}`,
+      rawId: post.id,
+      sourceType: 'manual',
+      title: post.title,
+      excerpt: post.excerpt,
+      coverImage: post.coverImage,
+      published: Boolean(post.published),
+      categoryLabel: post.category ?? '—',
+      dateIso: post.publishedAt,
+      readTime: post.readTime,
+      slug: post.slug,
+      previewTo: `/admin/blog/artigos/${post.id}`,
+      editTo: `/admin/blog/artigos/${post.id}/editar`,
+    };
+  }
+
+  function mapAutomationPost(post) {
+    const status = post.status || 'queue';
+    return {
+      id: `ia:${post.id}`,
+      rawId: post.id,
+      sourceType: 'ia',
+      title: post.title || post.researchQuery || 'Sem título',
+      excerpt: post.idea || post.researchQuery || 'Conteúdo criado por automação.',
+      coverImage: post.images?.[0]?.url || '',
+      published: status === 'published',
+      categoryLabel: Array.isArray(post.categories) && post.categories.length > 0 ? post.categories[0] : 'Automação',
+      dateIso: post.updatedAt || post.createdAt,
+      readTime: status,
+      slug: post.slug,
+      previewTo: `/admin/blog/automacao/${post.id}/preview`,
+      editTo: `/admin/blog/automacao/${post.id}`,
+    };
+  }
+
   useEffect(() => {
     if (!token) {
-      setPosts([]);
+      setAllPosts([]);
       setLoading(false);
       return;
     }
@@ -39,21 +124,47 @@ export function AdminPostsPage() {
       setLoading(true);
       setError('');
       try {
-        const res = await adminListPosts(token, page, PAGE_SIZE);
+        const [manualResult, automationResult] = await Promise.allSettled([
+          adminListPosts(token, 1, 200),
+          listAutomationPosts(token, 1, 200),
+        ]);
         if (cancelled) return;
-        setPosts(res.data ?? []);
-        if (res.meta) {
-          setMeta({
-            current_page: res.meta.current_page ?? 1,
-            last_page: res.meta.last_page ?? 1,
-            per_page: res.meta.per_page ?? PAGE_SIZE,
-            total: res.meta.total ?? 0,
-          });
+        const manualRes = manualResult.status === 'fulfilled' ? manualResult.value : { data: [] };
+        const automationRes = automationResult.status === 'fulfilled' ? automationResult.value : { data: [] };
+        const manualItems = Array.isArray(manualRes.data) ? manualRes.data : [];
+        const automationItems = Array.isArray(automationRes.data) ? automationRes.data : [];
+
+        const merged = mergeManualAndAutomationLists(
+          manualItems,
+          automationItems,
+          mapManualPost,
+          mapAutomationPost,
+          detectSource,
+        );
+        setAllPosts(merged);
+
+        const total = merged.length;
+        const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+        const safePage = Math.min(page, lastPage);
+        if (page !== safePage) setPage(safePage);
+        setMeta({
+          current_page: safePage,
+          last_page: lastPage,
+          per_page: PAGE_SIZE,
+          total,
+        });
+
+        if (manualResult.status === 'rejected' && automationResult.status === 'rejected') {
+          setError('Não foi possível carregar posts manuais nem de automação.');
+        } else if (manualResult.status === 'rejected') {
+          setError('Não foi possível carregar posts manuais. Exibindo automação.');
+        } else if (automationResult.status === 'rejected') {
+          setError('Não foi possível carregar posts de automação. Exibindo apenas manuais.');
         }
       } catch (e) {
         if (!cancelled) {
           setError(e.message || 'Não foi possível carregar.');
-          setPosts([]);
+          setAllPosts([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -61,6 +172,8 @@ export function AdminPostsPage() {
     })();
     return () => { cancelled = true; };
   }, [token, page]);
+
+  const posts = allPosts.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function onDelete(id, e) {
     e?.preventDefault();
@@ -70,21 +183,71 @@ export function AdminPostsPage() {
     setError('');
     try {
       await adminDeletePost(token, id);
-      const res = await adminListPosts(token, page, PAGE_SIZE);
-      setPosts(res.data ?? []);
-      if (res.meta) {
-        setMeta({
-          current_page: res.meta.current_page ?? 1,
-          last_page: res.meta.last_page ?? 1,
-          per_page: res.meta.per_page ?? PAGE_SIZE,
-          total: res.meta.total ?? 0,
-        });
-        if (page > 1 && (res.data?.length ?? 0) === 0) {
-          setPage((p) => Math.max(1, p - 1));
-        }
-      }
+      const [manualResult, automationResult] = await Promise.allSettled([
+        adminListPosts(token, 1, 200),
+        listAutomationPosts(token, 1, 200),
+      ]);
+      const manualRes = manualResult.status === 'fulfilled' ? manualResult.value : { data: [] };
+      const automationRes = automationResult.status === 'fulfilled' ? automationResult.value : { data: [] };
+      const manualItems = Array.isArray(manualRes.data) ? manualRes.data : [];
+      const automationItems = Array.isArray(automationRes.data) ? automationRes.data : [];
+      const merged = mergeManualAndAutomationLists(
+        manualItems,
+        automationItems,
+        mapManualPost,
+        mapAutomationPost,
+        detectSource,
+      );
+      setAllPosts(merged);
+      const total = merged.length;
+      const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
+      setMeta({
+        current_page: Math.min(page, lastPage),
+        last_page: lastPage,
+        per_page: PAGE_SIZE,
+        total,
+      });
     } catch (err) {
       setError(err.message || 'Não foi possível eliminar.');
+    }
+  }
+
+  async function onDeleteAutomation(id, e) {
+    e?.preventDefault();
+    e?.stopPropagation();
+    if (!window.confirm('Eliminar este post de automação?')) return;
+    if (!token) return;
+    setError('');
+    try {
+      await deleteAutomationPost(token, id);
+      const [manualResult, automationResult] = await Promise.allSettled([
+        adminListPosts(token, 1, 200),
+        listAutomationPosts(token, 1, 200),
+      ]);
+      const manualRes = manualResult.status === 'fulfilled' ? manualResult.value : { data: [] };
+      const automationRes = automationResult.status === 'fulfilled' ? automationResult.value : { data: [] };
+      const manualItems = Array.isArray(manualRes.data) ? manualRes.data : [];
+      const automationItems = Array.isArray(automationRes.data) ? automationRes.data : [];
+      const merged = mergeManualAndAutomationLists(
+        manualItems,
+        automationItems,
+        mapManualPost,
+        mapAutomationPost,
+        detectSource,
+      );
+      setAllPosts(merged);
+      const total = merged.length;
+      const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
+      setMeta({
+        current_page: Math.min(page, lastPage),
+        last_page: lastPage,
+        per_page: PAGE_SIZE,
+        total,
+      });
+    } catch (err) {
+      setError(err.message || 'Não foi possível eliminar post de automação.');
     }
   }
 
@@ -121,7 +284,7 @@ export function AdminPostsPage() {
             {posts.map((p) => (
               <Link
                 key={p.id}
-                to={`/admin/blog/artigos/${p.id}`}
+                to={p.previewTo}
                 className="group flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:border-royal-blue/25 hover:shadow-lg hover:shadow-royal-blue/5"
               >
                 <div className="relative h-44 overflow-hidden bg-gray-100">
@@ -142,7 +305,10 @@ export function AdminPostsPage() {
                     {p.published ? 'Publicado' : 'Rascunho'}
                   </span>
                   <span className="absolute bottom-3 left-3 rounded-full bg-coral-prime px-2.5 py-0.5 text-xs font-bold text-white shadow">
-                    {p.category ?? '—'}
+                    {p.categoryLabel ?? '—'}
+                  </span>
+                  <span className="absolute bottom-3 right-3 rounded-full bg-black/65 px-2.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white shadow">
+                    {p.sourceType === 'ia' ? 'ia' : 'manual'}
                   </span>
                 </div>
                 <div className="flex flex-1 flex-col p-4">
@@ -153,7 +319,7 @@ export function AdminPostsPage() {
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-gray-500">
                     <span className="inline-flex items-center gap-1">
                       <Calendar className="size-3.5 shrink-0" />
-                      {formatShortDate(p.publishedAt)}
+                      {formatShortDate(p.dateIso)}
                     </span>
                     <span>{p.readTime}</span>
                   </div>
@@ -163,7 +329,7 @@ export function AdminPostsPage() {
                       Ver pré-visualização
                     </span>
                     <span className="ml-auto flex items-center gap-1">
-                      {p.published ? (
+                      {p.published && p.slug ? (
                         <a
                           href={`/blog/${p.slug}`}
                           target="_blank"
@@ -176,21 +342,32 @@ export function AdminPostsPage() {
                         </a>
                       ) : null}
                       <Link
-                        to={`/admin/blog/artigos/${p.id}/editar`}
+                        to={p.editTo}
                         className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-royal-blue/10 hover:text-royal-blue"
                         title="Editar"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <Pencil className="size-4" />
                       </Link>
-                      <button
-                        type="button"
-                        className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                        title="Eliminar"
-                        onClick={(e) => onDelete(p.id, e)}
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
+                      {p.sourceType === 'manual' ? (
+                        <button
+                          type="button"
+                          className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Eliminar"
+                          onClick={(e) => onDelete(p.rawId, e)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                          title="Eliminar post IA"
+                          onClick={(e) => onDeleteAutomation(p.rawId, e)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -204,7 +381,7 @@ export function AdminPostsPage() {
               aria-label="Paginação de artigos"
             >
               <span className="text-center sm:text-left">
-                Página {meta.current_page} de {meta.last_page} · {meta.total} artigo{meta.total !== 1 ? 's' : ''} · {PAGE_SIZE} por página
+                Página {meta.current_page} de {meta.last_page} · {meta.total} artigo{meta.total !== 1 ? 's' : ''} · {meta.per_page ?? PAGE_SIZE} por página
               </span>
               <div className="flex flex-wrap items-center justify-center gap-2">
                 <Button
