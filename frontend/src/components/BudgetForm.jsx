@@ -14,12 +14,15 @@ import {
     Users,
     MessageSquare
 } from 'lucide-react';
+import { apiFetch } from '@/lib/api';
 
 
 const BudgetForm = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [focusedField, setFocusedField] = useState(null);
+    const [formStartedAt] = useState(() => Date.now());
+    const [websiteTrap, setWebsiteTrap] = useState('');
     const [formData, setFormData] = useState({
         name: '',
         phone: '',
@@ -29,11 +32,29 @@ const BudgetForm = () => {
         message: ''
     });
 
+    const formatPhone = (value) => {
+        const digits = value.replace(/\D/g, '').slice(0, 11);
+
+        if (digits.length <= 2) {
+            return digits;
+        }
+
+        if (digits.length <= 6) {
+            return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+        }
+
+        if (digits.length <= 10) {
+            return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+        }
+
+        return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
+    };
+
     const handleChange = (e) => {
         const { name, value } = e.target;
         setFormData(prev => ({
             ...prev,
-            [name]: value
+            [name]: name === 'phone' ? formatPhone(value) : value
         }));
     };
 
@@ -42,38 +63,19 @@ const BudgetForm = () => {
         setIsLoading(true);
 
         try {
-            const response = await fetch('/api/send-email', {
+            await apiFetch('/contact-requests', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({
                     name: formData.name,
                     phone: formData.phone,
                     email: formData.email,
                     company: formData.company,
                     employees: formData.employees,
-                    message: formData.message
-                })
+                    message: formData.message,
+                    website: websiteTrap,
+                    started_at: formStartedAt,
+                }),
             });
-
-            let data;
-            try {
-                data = await response.json();
-            } catch (parseError) {
-                console.error('Erro ao fazer parse da resposta:', parseError);
-                throw new Error('Erro ao processar resposta do servidor');
-            }
-
-            if (!response.ok) {
-                let errorMessage = data.error || data.message || 'Erro ao enviar solicitação';
-                if (typeof errorMessage === 'object') {
-                    errorMessage = errorMessage.message || JSON.stringify(errorMessage);
-                }
-                throw new Error(errorMessage);
-            }
-
-            console.log('Sucesso:', data);
             setIsSubmitted(true);
 
         } catch (error) {
@@ -160,6 +162,18 @@ const BudgetForm = () => {
                             <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-royal-blue to-cyan-500"></div>
                             <CardContent className="p-8">
                                 <form onSubmit={handleSubmit} className="space-y-5">
+                                    <div className="absolute -left-[9999px] top-auto h-px w-px overflow-hidden">
+                                        <label htmlFor="website">Website</label>
+                                        <input
+                                            id="website"
+                                            name="website"
+                                            type="text"
+                                            tabIndex="-1"
+                                            autoComplete="off"
+                                            value={websiteTrap}
+                                            onChange={(e) => setWebsiteTrap(e.target.value)}
+                                        />
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                                         {/* Nome */}
                                         <div className="space-y-2 relative">

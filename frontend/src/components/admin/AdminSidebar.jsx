@@ -1,5 +1,5 @@
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, FileText, FolderTree, PlusCircle, ExternalLink, Users } from 'lucide-react';
+import { LayoutDashboard, FileText, FolderTree, ExternalLink, Users, MessagesSquare } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const linkClass = ({ isActive }) =>
@@ -26,15 +26,15 @@ export function AdminSidebar() {
           <Users className="size-4 shrink-0 opacity-90" />
           Usuarios
         </NavLink>
+        <NavLink to="/admin/contatos" className={linkClass}>
+          <MessagesSquare className="size-4 shrink-0 opacity-90" />
+          Contatos
+        </NavLink>
 
         <p className="mt-4 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Blog</p>
         <NavLink to="/admin/blog/artigos" className={linkClass}>
           <FileText className="size-4 shrink-0 opacity-90" />
           Artigos
-        </NavLink>
-        <NavLink to="/admin/blog/artigos/novo" className={linkClass}>
-          <PlusCircle className="size-4 shrink-0 opacity-90" />
-          Novo artigo
         </NavLink>
         <NavLink to="/admin/blog/categorias" className={linkClass}>
           <FolderTree className="size-4 shrink-0 opacity-90" />

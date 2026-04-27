@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Eye, CalendarDays, FileText, FolderTree, TrendingUp } from 'lucide-react';
-import { getAnalyticsSummary } from '@/lib/localAnalytics';
+import { FileText, FolderTree, MessagesSquare } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminListCategories, adminListPosts } from '@/lib/blogApi';
+import { adminListContactRequests } from '@/lib/contactRequestsApi';
 
 function StatCard({ icon: Icon, label, value, hint }) {
   return (
@@ -24,76 +24,67 @@ function StatCard({ icon: Icon, label, value, hint }) {
 
 export function AdminDashboardPage() {
   const { token } = useAuth();
-  const [stats, setStats] = useState(() => getAnalyticsSummary());
   const [postsCount, setPostsCount] = useState(0);
   const [catsCount, setCatsCount] = useState(0);
-
-  useEffect(() => {
-    function refreshAnalytics() {
-      setStats(getAnalyticsSummary());
-    }
-    refreshAnalytics();
-    window.addEventListener('emplyon-analytics', refreshAnalytics);
-    return () => window.removeEventListener('emplyon-analytics', refreshAnalytics);
-  }, []);
+  const [contactsCount, setContactsCount] = useState(0);
+  const [latestPosts, setLatestPosts] = useState([]);
 
   useEffect(() => {
     if (!token) {
       setPostsCount(0);
       setCatsCount(0);
+      setContactsCount(0);
+      setLatestPosts([]);
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const [cats, postsRes] = await Promise.all([
+        const [cats, postsRes, contactsRes] = await Promise.all([
           adminListCategories(token),
-          adminListPosts(token, 1, 1),
+          adminListPosts(token, 1, 3),
+          adminListContactRequests(token, 1, 1),
         ]);
         if (cancelled) return;
         setCatsCount(Array.isArray(cats) ? cats.length : 0);
         setPostsCount(postsRes.meta?.total ?? 0);
+        setContactsCount(contactsRes.meta?.total ?? 0);
+        setLatestPosts(Array.isArray(postsRes.data) ? postsRes.data.slice(0, 3) : []);
       } catch {
         if (!cancelled) {
           setPostsCount(0);
           setCatsCount(0);
+          setContactsCount(0);
+          setLatestPosts([]);
         }
       }
     })();
     return () => { cancelled = true; };
   }, [token]);
 
-  const weekTotal = stats.last7Days.reduce((a, d) => a + d.count, 0);
-  const maxBar = Math.max(...stats.last7Days.map((d) => d.count), 1);
+  function formatDate(iso) {
+    if (!iso) return '—';
+    try {
+      return new Date(iso).toLocaleString('pt-PT', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+    } catch {
+      return '—';
+    }
+  }
 
   return (
     <div className="w-full space-y-8">
-      <div className="rounded-xl border border-amber-200/80 bg-amber-50/80 px-4 py-3 text-sm text-amber-900">
-        <strong className="font-semibold">Nota:</strong>
-        {' '}
-        as visualizações abaixo são estimativas neste navegador. Os totais de artigos e categorias atualizam quando inicia sessão.
-      </div>
-
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          icon={Eye}
-          label="Visualizações (total)"
-          value={stats.totalPageviews.toLocaleString('pt-PT')}
-          hint="Desde a primeira visita neste navegador"
-        />
-        <StatCard
-          icon={CalendarDays}
-          label="Hoje"
-          value={stats.todayPageviews.toLocaleString('pt-PT')}
-          hint="Páginas vistas neste dispositivo"
-        />
         <StatCard
           icon={FileText}
           label="Artigos no blog"
           value={postsCount.toLocaleString('pt-PT')}
           hint={(
             <Link to="/admin/blog/artigos" className="text-royal-blue hover:underline">
-              Gerir artigos
+              Ver listagem
             </Link>
           )}
         />
@@ -103,52 +94,46 @@ export function AdminDashboardPage() {
           value={catsCount.toLocaleString('pt-PT')}
           hint={(
             <Link to="/admin/blog/categorias" className="text-royal-blue hover:underline">
-              Gerir categorias
+              Ver categorias
+            </Link>
+          )}
+        />
+        <StatCard
+          icon={MessagesSquare}
+          label="Contatos recebidos"
+          value={contactsCount.toLocaleString('pt-PT')}
+          hint={(
+            <Link to="/admin/contatos" className="text-royal-blue hover:underline">
+              Ver contatos
             </Link>
           )}
         />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center gap-2">
-            <TrendingUp className="size-5 text-royal-blue" />
-            <h2 className="text-base font-semibold text-deep-navy">Últimos 7 dias</h2>
-            <span className="ml-auto text-sm text-gray-500">{weekTotal} vistas</span>
-          </div>
-          <div className="flex h-40 items-end gap-2">
-            {stats.last7Days.map((d) => {
-              const h = Math.round((d.count / maxBar) * 100);
-              const dayLabel = d.date.slice(8, 10);
-              return (
-                <div key={d.date} className="flex flex-1 flex-col items-center gap-1">
-                  <div
-                    className="w-full max-w-8 rounded-t-md bg-royal-blue/85 transition-all"
-                    style={{ height: `${Math.max(h, 4)}%` }}
-                    title={`${d.date}: ${d.count}`}
-                  />
-                  <span className="text-[10px] text-gray-400">{dayLabel}</span>
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex items-center justify-between gap-3">
+          <h2 className="text-base font-semibold text-deep-navy">Últimos 3 posts</h2>
+          <Link to="/admin/blog/artigos" className="text-sm font-medium text-royal-blue hover:underline">
+            Ver todos
+          </Link>
+        </div>
+        {latestPosts.length === 0 ? (
+          <p className="text-sm text-gray-500">Ainda não há artigos.</p>
+        ) : (
+          <ul className="space-y-3">
+            {latestPosts.map((post) => (
+              <li key={post.id} className="flex items-center justify-between gap-3 rounded-lg border border-gray-100 px-3 py-2">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-deep-navy">{post.title}</p>
+                  <p className="text-xs text-gray-500">{formatDate(post.created_at)}</p>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-          <h2 className="mb-4 text-base font-semibold text-deep-navy">Páginas mais vistas neste navegador</h2>
-          {stats.topPaths.length === 0 ? (
-            <p className="text-sm text-gray-500">Ainda não há dados. Navegue pelo site para ver estatísticas.</p>
-          ) : (
-            <ul className="space-y-3">
-              {stats.topPaths.map((row) => (
-                <li key={row.path} className="flex items-center justify-between gap-3 text-sm">
-                  <code className="truncate rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">{row.path}</code>
-                  <span className="shrink-0 font-semibold tabular-nums text-deep-navy">{row.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
+                <Link to={`/admin/blog/artigos/${post.id}`} className="shrink-0 text-sm text-royal-blue hover:underline">
+                  Ver
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
     </div>
   );

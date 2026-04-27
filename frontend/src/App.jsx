@@ -15,6 +15,7 @@ import { AdminPostsPage } from '@/pages/admin/AdminPostsPage';
 import { AdminPostEditorPage } from '@/pages/admin/AdminPostEditorPage';
 import { AdminPostPreviewPage } from '@/pages/admin/AdminPostPreviewPage';
 import { AdminUsersPage } from '@/pages/admin/AdminUsersPage';
+import { AdminContactRequestsPage } from '@/pages/admin/AdminContactRequestsPage';
 import { CookieBanner } from '@/components/CookieBanner';
 import { PageViewTracker } from '@/components/PageViewTracker';
 import { useAuth } from '@/contexts/AuthContext';
@@ -95,6 +96,7 @@ function App() {
         >
           <Route index element={<AdminDashboardPage />} />
           <Route path="usuarios" element={<AdminUsersPage />} />
+          <Route path="contatos" element={<AdminContactRequestsPage />} />
           <Route path="perfil" element={<AdminProfilePage />} />
           <Route path="blog/categorias" element={<AdminCategoriesPage />} />
           <Route path="blog/artigos" element={<AdminPostsPage />} />

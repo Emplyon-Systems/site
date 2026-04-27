@@ -3,8 +3,10 @@
 use App\Http\Controllers\Api\AdminBlogCategoryController;
 use App\Http\Controllers\Api\AdminBlogPostController;
 use App\Http\Controllers\Api\AdminBlogUploadController;
+use App\Http\Controllers\Api\AdminContactRequestController;
 use App\Http\Controllers\Api\AdminUserController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\PublicContactRequestController;
 use App\Http\Controllers\Api\PublicBlogController;
 use Illuminate\Support\Facades\Route;
 
@@ -17,6 +19,9 @@ Route::prefix('blog')->group(function (): void {
     Route::get('posts/{slug}', [PublicBlogController::class, 'show']);
 });
 
+Route::post('/contact-requests', [PublicContactRequestController::class, 'store'])
+    ->middleware('throttle:5,1');
+
 Route::middleware('auth:sanctum')->group(function (): void {
     Route::get('/me', [AuthController::class, 'me']);
     Route::patch('/me', [AuthController::class, 'updateProfile']);
@@ -28,6 +33,7 @@ Route::middleware('auth:sanctum')->group(function (): void {
         Route::post('users', [AdminUserController::class, 'store']);
         Route::patch('users/{user}', [AdminUserController::class, 'update']);
         Route::delete('users/{user}', [AdminUserController::class, 'destroy']);
+        Route::get('contact-requests', [AdminContactRequestController::class, 'index']);
 
         Route::post('blog/upload', [AdminBlogUploadController::class, 'store']);
 
