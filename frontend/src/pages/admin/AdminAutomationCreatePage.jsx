@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { submitPost } from '@/lib/postsApi';
+import { pollPostUntilTerminal, submitPost } from '@/lib/postsApi';
 import { AdminAutomationSubnav } from '@/components/admin/AdminAutomationSubnav';
 import { adminListCategories } from '@/lib/blogApi';
 
@@ -18,6 +18,10 @@ export function AdminAutomationCreatePage() {
   const [categoriesLoading, setCategoriesLoading] = useState(true);
   const [error, setError] = useState('');
   const [createdPostId, setCreatedPostId] = useState('');
+  const [automationStatus, setAutomationStatus] = useState('');
+  const [polling, setPolling] = useState(false);
+  const [pollingTimedOut, setPollingTimedOut] = useState(false);
+  const [pollingError, setPollingError] = useState('');
 
   useEffect(() => {
     if (!token) return;
@@ -36,6 +40,47 @@ export function AdminAutomationCreatePage() {
     })();
     return () => { cancelled = true; };
   }, [token]);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!token || !createdPostId) return () => { cancelled = true; };
+
+    (async () => {
+      setPolling(true);
+      setPollingTimedOut(false);
+      setPollingError('');
+      try {
+        const result = await pollPostUntilTerminal(token, createdPostId, {
+          intervalMs: 2500,
+          timeoutMs: 15 * 60 * 1000,
+        });
+        if (cancelled) return;
+        if (result?.status) setAutomationStatus(result.status);
+        if (result?.timedOut) {
+          setPollingTimedOut(true);
+          return;
+        }
+        if (result?.status === 'error') {
+          const msg = result?.data?.errorMessage || result?.data?.error_message || '';
+          if (msg) setPollingError(msg);
+        }
+      } catch (err) {
+        if (cancelled) return;
+        if (err?.status === 401) {
+          await logout();
+          navigate('/admin/login', { replace: true });
+          return;
+        }
+        setPollingError(err.message || 'Nao foi possivel consultar o status da automacao.');
+      } finally {
+        if (!cancelled) setPolling(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [token, createdPostId, navigate, logout]);
 
   const selectedCategoryNames = useMemo(() => {
     if (selectedCategoryIds.length === 0) return [];
@@ -58,6 +103,9 @@ export function AdminAutomationCreatePage() {
     e.preventDefault();
     setError('');
     setCreatedPostId('');
+    setAutomationStatus('');
+    setPollingError('');
+    setPollingTimedOut(false);
 
     if (!token) {
       setError('Sessao invalida. Entre novamente para continuar.');
@@ -72,6 +120,7 @@ export function AdminAutomationCreatePage() {
         categories: selectedCategoryNames,
       });
       setCreatedPostId(response.postId || '');
+      setAutomationStatus(response.status || 'queue');
     } catch (err) {
       if (err?.status === 401) {
         await logout();
@@ -175,6 +224,25 @@ export function AdminAutomationCreatePage() {
             <p className="mt-1 break-all">
               postId: <code className="rounded bg-emerald-100 px-1.5 py-0.5">{createdPostId}</code>
             </p>
+            <p className="mt-1">
+              Status: <code className="rounded bg-emerald-100 px-1.5 py-0.5">{automationStatus || 'queue'}</code>
+            </p>
+            {polling ? (
+              <p className="mt-2 inline-flex items-center gap-2 text-emerald-900">
+                <Loader2 className="size-4 animate-spin" />
+                Acompanhando processamento (fila/processando)...
+              </p>
+            ) : null}
+            {pollingTimedOut ? (
+              <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-amber-800">
+                O acompanhamento automatico atingiu 15 minutos. Abra o detalhe para consultar novamente.
+              </p>
+            ) : null}
+            {pollingError ? (
+              <p className="mt-2 rounded-md border border-red-200 bg-red-50 px-2 py-1.5 text-red-700">
+                {pollingError}
+              </p>
+            ) : null}
             <div className="mt-3 flex flex-wrap gap-2">
               <Button asChild size="sm" className="rounded-lg bg-royal-blue text-white hover:bg-blue-600">
                 <Link to={`/admin/blog/automacao/${createdPostId}`}>Abrir detalhe</Link>
