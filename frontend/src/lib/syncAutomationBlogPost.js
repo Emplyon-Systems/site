@@ -5,47 +5,15 @@ import {
   buildPostFormData,
 } from '@/lib/blogApi';
 import { slugify } from '@/lib/slugify';
+import { automationHtmlToBlogBlocks } from '@/lib/parseAutomationHtml';
 
-/**
- * Extrai parágrafos do HTML gerado pela automação para os blocos do editor/blog.
- */
-export function automationHtmlToBlogBlocks(html, fallbackTitle = '') {
-  if (!html || typeof html !== 'string' || typeof DOMParser === 'undefined') {
-    const t = fallbackTitle.trim();
-    return [{ type: 'p', text: t || 'Artigo disponível na área principal.' }];
-  }
-
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const titleNode = doc.body.querySelector('h1');
-  const titleFromHtml = titleNode?.textContent?.trim() || '';
-
-  const paragraphs = Array.from(doc.body.querySelectorAll('p'))
-    .map((p) => p.textContent?.trim() || '')
-    .filter(Boolean);
-
-  const normalizedTitle = (titleFromHtml || fallbackTitle || '').trim().toLowerCase();
-  const cleanParagraphs = paragraphs.filter(
-    (p, idx) => !(idx === 0 && p.trim().toLowerCase() === normalizedTitle),
-  );
-
-  const blocks =
-    cleanParagraphs.length > 0
-      ? cleanParagraphs.map((text) => ({ type: 'p', text }))
-      : [{ type: 'p', text: fallbackTitle.trim() || 'Artigo disponível na área principal.' }];
-
-  return blocks.map(({ type, text, items, src, alt, caption }) => ({
-    type,
-    ...(typeof text === 'string' ? { text } : {}),
-    ...(Array.isArray(items) ? { items } : {}),
-    ...(typeof src === 'string' ? { src } : {}),
-    ...(typeof alt === 'string' ? { alt } : {}),
-    ...(typeof caption === 'string' ? { caption } : {}),
-  }));
-}
+export { automationHtmlToBlogBlocks } from '@/lib/parseAutomationHtml';
 
 function excerptFromAutomation(post, blocks) {
   const idea = typeof post.idea === 'string' ? post.idea.trim() : '';
+  const meta = typeof post.meta === 'string' ? post.meta.trim() : '';
   if (idea.length >= 40) return idea.slice(0, 500);
+  if (meta.length >= 40) return meta.slice(0, 500);
 
   const firstBlock = blocks.find((b) => b.type === 'p' && typeof b.text === 'string' && b.text.trim());
   const fromBody = firstBlock?.text?.trim?.() ?? '';

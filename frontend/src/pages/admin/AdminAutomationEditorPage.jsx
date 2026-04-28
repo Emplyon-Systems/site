@@ -7,41 +7,19 @@ import { getPost, updatePost } from '@/lib/postsApi';
 import { upsertBlogPostFromAutomation } from '@/lib/syncAutomationBlogPost';
 import { AdminAutomationSubnav } from '@/components/admin/AdminAutomationSubnav';
 import { slugify } from '@/lib/slugify';
+import { parseHtmlToStructuredFields as parseAutomationHtmlFields } from '@/lib/parseAutomationHtml';
 import { ArticleBlockEditor } from '@/components/admin/article-editor/ArticleBlockEditor';
 import { BlogContent } from '@/components/BlogContent';
-import { ensureBlockIds, newBlock } from '@/lib/articleBlocks';
+import { ensureBlockIds } from '@/lib/articleBlocks';
 
 const STATUS_OPTIONS = ['queue', 'processing', 'ready', 'error', 'published'];
 const FORM_MODE_OPTIONS = ['test', 'production'];
 
 function parseHtmlToStructuredFields(html, fallbackTitle = '') {
-  if (!html || typeof html !== 'string') {
-    return { headText: '', contentText: '', blocks: ensureBlockIds([{ type: 'p', text: '' }]) };
-  }
-
-  if (typeof DOMParser === 'undefined') {
-    return { headText: '', contentText: '', blocks: ensureBlockIds([{ type: 'p', text: '' }]) };
-  }
-
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const titleNode = doc.body.querySelector('h1');
-  const titleFromHtml = titleNode?.textContent?.trim() || '';
-  const paragraphs = Array.from(doc.body.querySelectorAll('p'))
-    .map((p) => p.textContent?.trim() || '')
-    .filter(Boolean);
-
-  // Se o primeiro parágrafo repetir o título, ignora para não duplicar conteúdo.
-  const normalizedTitle = (titleFromHtml || fallbackTitle || '').trim().toLowerCase();
-  const cleanParagraphs = paragraphs.filter((p, idx) => !(idx === 0 && p.trim().toLowerCase() === normalizedTitle));
-
+  const parsed = parseAutomationHtmlFields(html, fallbackTitle);
   return {
-    headText: cleanParagraphs[0] || '',
-    contentText: cleanParagraphs.slice(1).join('\n\n'),
-    blocks: ensureBlockIds(
-      cleanParagraphs.length > 0
-        ? cleanParagraphs.map((text) => ({ type: 'p', text }))
-        : [newBlock('p')],
-    ),
+    ...parsed,
+    blocks: ensureBlockIds(parsed.blocks?.length ? parsed.blocks : [{ type: 'p', text: '' }]),
   };
 }
 
@@ -90,12 +68,11 @@ function normalizeImages(images) {
 }
 
 function buildInitialForm(data) {
-  const { headText, contentText } = parseHtmlToStructuredFields(data?.htmlContent || '', data?.title || '');
   const parsed = parseHtmlToStructuredFields(data?.htmlContent || '', data?.title || '');
   return {
     title: data?.title || '',
-    idea: data?.idea || '',
-    headText: parsed.headText || headText,
+    idea: data?.idea || data?.meta || '',
+    headText: parsed.headText || '',
     blocks: parsed.blocks,
     status: data?.status || 'queue',
     formMode: data?.formMode || 'test',
