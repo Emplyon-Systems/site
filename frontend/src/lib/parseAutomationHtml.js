@@ -100,14 +100,19 @@ export function parseHtmlToStructuredFields(html, fallbackTitle = '') {
     }
 
     if (tag === 'p') {
-      const text = el.textContent?.trim() || '';
-      if (!text) continue;
+      const parts = splitIntoParts(el);
+      if (!parts.length) continue;
       if (!sawFirstP) {
-        headText = text;
+        headText = parts[0];
         sawFirstP = true;
+        for (const text of parts.slice(1)) {
+          blocks.push({ type: 'p', text });
+        }
         continue;
       }
-      blocks.push({ type: 'p', text });
+      for (const text of parts) {
+        blocks.push({ type: 'p', text });
+      }
       continue;
     }
 
@@ -139,6 +144,36 @@ export function parseHtmlToStructuredFields(html, fallbackTitle = '') {
 }
 
 /**
+ * Extrai o texto de um elemento preservando quebras de linha geradas por <br>.
+ * O textContent nativo ignora <br>, perdendo a separação entre parágrafos inline.
+ */
+function getTextWithBreaks(el) {
+  let out = '';
+  for (const node of el.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE) {
+      out += node.textContent;
+    } else if (node.nodeName.toLowerCase() === 'br') {
+      out += '\n';
+    } else if (node.nodeType === Node.ELEMENT_NODE) {
+      out += getTextWithBreaks(node);
+    }
+  }
+  return out;
+}
+
+/**
+ * Divide o texto de um elemento em partes separadas por quebras duplas.
+ * Permite que um único <p> com <br><br> ou \n\n produza múltiplos blocos p.
+ */
+function splitIntoParts(el) {
+  const raw = getTextWithBreaks(el);
+  return raw
+    .split(/\n{2,}/)
+    .map((s) => s.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim())
+    .filter(Boolean);
+}
+
+/**
  * Blog público: converte HTML da automação em blocos JSON (parágrafos + listas + subtítulos).
  */
 export function automationHtmlToBlogBlocks(html, fallbackTitle = '') {
@@ -149,14 +184,19 @@ export function automationHtmlToBlogBlocks(html, fallbackTitle = '') {
 
   const doc = new DOMParser().parseFromString(stripAutomationStyleTags(html), 'text/html');
   const titleFromH1 = doc.body.querySelector('h1')?.textContent?.trim() || '';
+  const normalizedTitle = (titleFromH1 || fallbackTitle || '').trim().toLowerCase();
   const blocks = [];
 
-  const candidates = doc.body.querySelectorAll('h1, h2, h3, h4, p, ul, blockquote');
+  const candidates = doc.body.querySelectorAll('h1, h2, h3, h4, p, ul, ol, blockquote, div');
 
   for (const el of candidates) {
-    if (el.tagName.toLowerCase() !== 'ul' && el.closest('ul')) continue;
-
     const tag = el.tagName.toLowerCase();
+
+    // Evitar processar elementos filhos de listas
+    if (tag !== 'ul' && tag !== 'ol' && el.closest('ul, ol')) continue;
+
+    // Evitar processar divs aninhados (só o div mais externo com texto direto)
+    if (tag === 'div' && el.closest('div')) continue;
 
     if (tag === 'h1') continue;
 
@@ -169,28 +209,31 @@ export function automationHtmlToBlogBlocks(html, fallbackTitle = '') {
       ) {
         continue;
       }
-      blocks.push({ type: 'h2', text });
+      if (text) blocks.push({ type: 'h2', text });
       continue;
     }
 
-    if (tag === 'p') {
-      const text = el.textContent?.trim() || '';
-      if (!text) continue;
+    if (tag === 'p' || tag === 'div') {
+      // Para divs, só processar se não contém blocos-filhos reconhecidos
+      if (tag === 'div' && el.querySelector('h2, h3, h4, p, ul, ol, blockquote')) continue;
 
-      const normalizedTitle = (titleFromH1 || fallbackTitle || '').trim().toLowerCase();
-      const skipDup =
-        blocks.length === 0 &&
-        text.trim().toLowerCase() === normalizedTitle &&
-        normalizedTitle.length > 0;
-      if (!skipDup) blocks.push({ type: 'p', text });
+      // Divide em partes para lidar com <br><br> ou \n\n dentro de um único elemento
+      const parts = splitIntoParts(el);
+      for (const text of parts) {
+        const skipDup =
+          blocks.length === 0 &&
+          text.toLowerCase() === normalizedTitle &&
+          normalizedTitle.length > 0;
+        if (!skipDup) blocks.push({ type: 'p', text });
+      }
       continue;
     }
 
-    if (tag === 'ul') {
+    if (tag === 'ul' || tag === 'ol') {
       const items = Array.from(el.querySelectorAll(':scope > li'))
         .map((li) => li.textContent?.trim() || '')
         .filter(Boolean);
-      if (items.length) blocks.push({ type: 'ul', items });
+      if (items.length) blocks.push({ type: tag === 'ol' ? 'ol' : 'ul', items });
       continue;
     }
 

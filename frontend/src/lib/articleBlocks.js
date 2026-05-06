@@ -121,7 +121,7 @@ export function countWordsInBlocks(blocks) {
     if (b.type === 'p' || b.type === 'h2' || b.type === 'quote') {
       n += countWords(b.text || '');
     }
-    if (b.type === 'ul' && Array.isArray(b.items)) {
+    if ((b.type === 'ul' || b.type === 'ol') && Array.isArray(b.items)) {
       for (const li of b.items) {
         n += countWords(li || '');
       }

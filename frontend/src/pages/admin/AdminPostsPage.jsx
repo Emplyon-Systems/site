@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 import { adminDeletePost, adminListPosts } from '@/lib/blogApi';
 import { deletePost as deleteAutomationPost, listPosts as listAutomationPosts } from '@/lib/postsApi';
+import { slugify } from '@/lib/slugify';
 
 /** Itens por página na grelha (3×3 em ecrãs largos). */
 const PAGE_SIZE = 9;
@@ -14,12 +15,18 @@ function normalizeSlug(s) {
   return s.trim().toLowerCase();
 }
 
-/** Slugs dos posts de automação — espelhos Laravel com o mesmo slug são omitidos para não duplicar nem aparecer como manual. */
+/** Slugs dos posts de automação — espelhos Laravel com o mesmo slug são omitidos para não duplicar nem aparecer como manual.
+ *  Usa o campo `slug` quando disponível; caso contrário deriva do título (mesma lógica de upsertBlogPostFromAutomation). */
 function automationSlugSet(automationItems) {
   const set = new Set();
   for (const a of automationItems) {
-    const n = normalizeSlug(a?.slug);
-    if (n) set.add(n);
+    const fromSlug = normalizeSlug(a?.slug);
+    if (fromSlug) { set.add(fromSlug); continue; }
+    const title = a?.title?.trim() || a?.researchQuery?.trim() || '';
+    if (title) {
+      const fromTitle = normalizeSlug(slugify(title));
+      if (fromTitle) set.add(fromTitle);
+    }
   }
   return set;
 }
